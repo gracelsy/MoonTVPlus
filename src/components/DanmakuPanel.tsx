@@ -382,9 +382,18 @@ export default function DanmakuPanel({
 
                 {/* 信息 */}
                 <div className='min-w-0 flex-1'>
-                  <p className='truncate font-semibold text-gray-800 dark:text-white'>
-                    {anime.animeTitle}
-                  </p>
+                  <div className='relative'>
+                    <p className='truncate font-semibold text-gray-800 dark:text-white peer'>
+                      {anime.animeTitle}
+                    </p>
+                    {/* 自定义 tooltip */}
+                    <div
+                      className='absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded-md shadow-lg opacity-0 invisible peer-hover:opacity-100 peer-hover:visible transition-all duration-200 ease-out delay-100 whitespace-nowrap pointer-events-none z-[100]'
+                    >
+                      {anime.animeTitle}
+                      <div className='absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800' />
+                    </div>
+                  </div>
                   <div className='mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-400'>
                     <span className='rounded bg-gray-200 px-2 py-0.5 dark:bg-gray-700'>
                       {anime.typeDescription || anime.type}

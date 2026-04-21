@@ -1,4 +1,4 @@
-name: Fork Sync
+name: Fork Sync（仓库设置中添加 Secrets -> SYNC_PAT）
 
 on:
   schedule:

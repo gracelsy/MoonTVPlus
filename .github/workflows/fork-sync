@@ -1,0 +1,107 @@
+name: Fork Sync (请仓库设置中添加 Secrets -> SYNC_PAT)
+
+on:
+  schedule:
+    - cron: '0 */3 * * *'  # 每3小时运行一次
+  workflow_dispatch:       # 允许手动触发
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    # 仅当仓库是 Fork 时运行
+    if: github.event.repository.fork == true
+
+    env:
+      # ================= 配置区域 =================
+      # 上游远程仓库地址 (格式: https://github.com/用户名/仓库名)
+      UPSTREAM_REPO: 'https://github.com/mtvpls/MoonTVPlus'
+      
+      # 上游远程分支名
+      UPSTREAM_BRANCH: 'main'
+      
+      # 本地需要保持同步的分支名
+      LOCAL_BRANCH: 'main'
+      
+      # 用户信息 (用于 Git 提交记录)
+      GIT_USER: 'github-actions[bot]'
+      GIT_EMAIL: '41898282+github-actions[bot]@users.noreply.github.com'
+      # ===========================================
+
+    steps:
+      - name: 校验 PAT 密钥
+        run: |
+          if [ -z "${{ secrets.SYNC_PAT }}" ]; then
+            echo "::error::未检测到 SYNC_PAT 密钥，请在仓库设置中添加 Secrets -> SYNC_PAT"
+            exit 1
+          fi
+
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_PAT }} # 强制使用 PAT 进行检出
+
+      - name: 配置 Git 用户信息
+        run: |
+          git config user.name "${{ env.GIT_USER }}"
+          git config user.email "${{ env.GIT_EMAIL }}"
+
+      - name: 添加上游远程仓库
+        run: |
+          # 如果已存在 upstream 则先删除，防止报错
+          git remote rm upstream 2>/dev/null || true
+          git remote add upstream "${{ env.UPSTREAM_REPO }}"
+          git remote -v
+
+      - name: 获取上游最新代码
+        run: |
+          git fetch upstream --tags
+
+      - name: 保存本地更改 (生成补丁)
+        id: save_changes
+        run: |
+          # 切换到本地分支
+          git checkout "${{ env.LOCAL_BRANCH }}"
+          
+          # 比较本地分支与上游分支的差异
+          # 排除 .github/workflows 目录，防止工作流文件冲突
+          DIFF_OUTPUT=$(git diff "upstream/${{ env.UPSTREAM_BRANCH }}" -- . ':!./.github/workflows')
+          
+          if [ -n "$DIFF_OUTPUT" ]; then
+            echo "检测到本地修改，正在保存补丁..."
+            git diff "upstream/${{ env.UPSTREAM_BRANCH }}" -- . ':!./.github/workflows' > /tmp/local_changes.patch
+            echo "PATCH_EXISTS=true" >> $GITHUB_OUTPUT
+          else
+            echo "没有检测到本地修改。"
+            echo "PATCH_EXISTS=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 重置并同步上游代码
+        run: |
+          echo "正在重置本地分支到上游状态..."
+          git checkout "${{ env.LOCAL_BRANCH }}"
+          git reset --hard "upstream/${{ env.UPSTREAM_BRANCH }}"
+
+      - name: 应用本地更改 (尝试合并)
+        if: steps.save_changes.outputs.PATCH_EXISTS == 'true'
+        run: |
+          echo "正在尝试应用之前的本地修改..."
+          # 使用 --3way 尝试三路合并，如果失败则生成 .rej 文件
+          git apply --3way /tmp/local_changes.patch || {
+            echo "::warning::自动合并失败，存在冲突文件 (.rej)。请手动检查。"
+            # 即使有冲突也继续，让用户看到 .rej 文件
+          }
+
+      - name: 推送更新到 Fork 仓库
+        run: |
+          # 检查是否有变更
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "检测到变更，正在推送到远程仓库..."
+            git add -A
+            git commit -m "chore: sync with upstream and preserve local changes"
+            
+            # 强制使用 PAT 推送，确保能触发后续工作流
+            git push origin "${{ env.LOCAL_BRANCH }}" -f
+          else
+            echo "没有需要推送的更改。"
+          fi

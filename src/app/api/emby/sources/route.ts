@@ -1,7 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 import { embyManager } from '@/lib/emby-manager';
-import { requireFeaturePermission } from '@/lib/permissions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic'; // 禁用缓存
@@ -9,10 +8,8 @@ export const dynamic = 'force-dynamic'; // 禁用缓存
 /**
  * 获取所有启用的Emby源列表
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const authResult = await requireFeaturePermission(request, 'emby', '无权限访问 Emby');
-    if (authResult instanceof NextResponse) return authResult;
     const sources = await embyManager.getEnabledSources();
 
     return NextResponse.json({

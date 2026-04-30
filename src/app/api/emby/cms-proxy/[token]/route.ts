@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getConfig } from '@/lib/config';
 import { EmbyClient } from '@/lib/emby.client';
-import { hasFeaturePermission } from '@/lib/permissions';
 
 export const runtime = 'nodejs';
 
@@ -46,8 +45,7 @@ export async function GET(
     if (username) {
       // 检查用户是否被封禁
       const userInfo = await db.getUserInfoV2(username);
-      const allowed = await hasFeaturePermission(username, 'emby');
-      if (userInfo && !userInfo.banned && allowed) {
+      if (userInfo && !userInfo.banned) {
         isValidToken = true;
       }
     }

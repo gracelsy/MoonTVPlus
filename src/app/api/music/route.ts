@@ -3,7 +3,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getConfig } from '@/lib/config';
-import { requireFeaturePermission } from '@/lib/permissions';
 import { OpenListClient } from '@/lib/openlist.client';
 
 export const runtime = 'nodejs';
@@ -21,19 +20,19 @@ const serverCache = {
 // 正在下载的音频任务追踪（防止重复下载）
 const downloadingTasks = new Map<string, Promise<void>>();
 
-// 获取音乐服务配置
-async function getMusicServiceConfig() {
+// 获取 TuneHub 配置
+async function getTuneHubConfig() {
   const config = await getConfig();
   const musicConfig = config?.MusicConfig;
 
-  const enabled = musicConfig?.Enabled ?? false;
+  const enabled = musicConfig?.TuneHubEnabled ?? false;
   const baseUrl =
-    musicConfig?.BaseUrl ||
-    process.env.MUSIC_V2_BASE_URL ||
-    '';
-  const token = musicConfig?.Token || process.env.MUSIC_V2_TOKEN || '';
+    musicConfig?.TuneHubBaseUrl ||
+    process.env.TUNEHUB_BASE_URL ||
+    'https://tunehub.sayqz.com/api';
+  const apiKey = musicConfig?.TuneHubApiKey || process.env.TUNEHUB_API_KEY || '';
 
-  return { enabled, baseUrl, token, musicConfig };
+  return { enabled, baseUrl, apiKey, musicConfig };
 }
 
 // 获取 OpenList 客户端
@@ -136,7 +135,7 @@ async function replaceAudioUrlsWithOpenList(
     return data;
   }
 
-  // 音乐服务返回的数据结构是 { code: 0, data: { data: [...], total: 1 } }
+  // TuneHub 返回的数据结构是 { code: 0, data: { data: [...], total: 1 } }
   // 需要提取内层的 data 数组
   const songsData = data.data.data || data.data;
   const songs = Array.isArray(songsData) ? songsData : [songsData];
@@ -206,7 +205,7 @@ async function proxyRequest(
 
     return response;
   } catch (error) {
-    console.error('Music API 请求失败:', error);
+    console.error('TuneHub API 请求失败:', error);
     throw error;
   }
 }
@@ -395,9 +394,7 @@ async function executeMethod(
 // GET 请求处理
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await requireFeaturePermission(request, 'music', '无权限访问音乐功能');
-    if (authResult instanceof NextResponse) return authResult;
-    const { enabled, baseUrl } = await getMusicServiceConfig();
+    const { enabled, baseUrl } = await getTuneHubConfig();
 
     if (!enabled) {
       return NextResponse.json(
@@ -547,9 +544,7 @@ export async function GET(request: NextRequest) {
 // POST 请求处理（用于解析歌曲）
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await requireFeaturePermission(request, 'music', '无权限访问音乐功能');
-    if (authResult instanceof NextResponse) return authResult;
-    const { enabled, baseUrl, token } = await getMusicServiceConfig();
+    const { enabled, baseUrl, apiKey } = await getTuneHubConfig();
 
     if (!enabled) {
       return NextResponse.json(
@@ -570,13 +565,13 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'parse': {
-        // 解析歌曲（需要 Token）
-        if (!token) {
+        // 解析歌曲（需要 API Key）
+        if (!apiKey) {
           return NextResponse.json(
             {
               code: -1,
-              error: '未配置音乐服务 Token',
-              message: '未配置音乐服务 Token'
+              error: '未配置 TuneHub API Key',
+              message: '未配置 TuneHub API Key'
             },
             { status: 403 }
           );
@@ -655,17 +650,17 @@ export async function POST(request: NextRequest) {
               }
             }
           } catch (error) {
-            // OpenList 缓存未命中，继续调用音乐服务
+            // OpenList 缓存未命中，继续调用 TuneHub
           }
         }
 
-        // 4. 调用音乐服务解析
+        // 4. 调用 TuneHub API 解析
         try {
           const response = await proxyRequest(`${baseUrl}/v1/parse`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-API-Key': token,
+              'X-API-Key': apiKey,
             },
             body: JSON.stringify({
               platform,
@@ -676,7 +671,7 @@ export async function POST(request: NextRequest) {
 
           const data = await response.json();
 
-          // 如果音乐服务返回错误，包装成统一格式
+          // 如果 TuneHub 返回错误，包装成统一格式
           if (!response.ok || data.code !== 0) {
             return NextResponse.json({
               code: data.code || -1,

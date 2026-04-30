@@ -108,12 +108,6 @@ export default function PrivateLibraryPage() {
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (mounted && !runtimeConfig.PRIVATE_LIBRARY_ENABLED) {
-      router.replace('/');
-    }
-  }, [mounted, router, runtimeConfig]);
-
   // 小雅搜索处理函数
   const handleXiaoyaSearch = async () => {
     if (!xiaoyaSearchKeyword.trim()) return;

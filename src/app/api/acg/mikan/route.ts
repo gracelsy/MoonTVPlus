@@ -5,7 +5,6 @@ import { parseStringPromise } from 'xml2js';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { getMagnetBaseUrl, universalMagnetFetch } from '@/lib/magnet.client';
-import { hasFeaturePermission } from '@/lib/permissions';
 
 export const runtime = 'nodejs';
 
@@ -23,7 +22,7 @@ export async function POST(req: NextRequest) {
   try {
     // 检查权限
     const authInfo = getAuthInfoFromCookie(req);
-    if (!authInfo?.username || !(await hasFeaturePermission(authInfo.username, 'magnet_search'))) {
+    if (!authInfo || (authInfo.role !== 'admin' && authInfo.role !== 'owner')) {
       return NextResponse.json(
         { error: '无权限访问' },
         { status: 403 }

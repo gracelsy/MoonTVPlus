@@ -151,6 +151,11 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
       label: '电视直播',
       href: '/live',
     },
+    {
+      icon: Globe,
+      label: '网络直播',
+      href: '/web-live',
+    },
   ]);
 
   useEffect(() => {
@@ -178,15 +183,11 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
         label: '综艺',
         href: '/douban?type=show',
       },
-      ...(runtimeConfig?.LIVE_ENABLED
-        ? [
-            {
-              icon: TvMinimalPlay,
-              label: '电视直播',
-              href: '/live',
-            },
-          ]
-        : []),
+      {
+        icon: TvMinimalPlay,
+        label: '电视直播',
+        href: '/live',
+      },
     ];
 
     // 如果启用网络直播，添加网络直播入口

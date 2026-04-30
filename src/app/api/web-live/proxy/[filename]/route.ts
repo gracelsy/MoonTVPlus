@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { requireFeaturePermission } from '@/lib/permissions';
-
 function getBaseUrl(url: string): string {
   const urlObj = new URL(url);
   const pathParts = urlObj.pathname.split('/');
@@ -40,8 +38,6 @@ function processM3u8Content(content: string, baseUrl: string): string {
 
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await requireFeaturePermission(request, 'web_live', '无权限访问网络直播');
-    if (authResult instanceof NextResponse) return authResult;
     const { searchParams } = new URL(request.url);
     const url = searchParams.get('url');
 

@@ -6,7 +6,6 @@ import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getAvailableApiSites, getCacheTime, getConfig } from '@/lib/config';
 import { searchFromApi } from '@/lib/downstream';
 import { getProxyToken } from '@/lib/emby-token';
-import { hasFeaturePermission } from '@/lib/permissions';
 import {
   executeSavedSourceScript,
   listEnabledSourceScripts,
@@ -43,10 +42,6 @@ export async function GET(request: NextRequest) {
 
   const config = await getConfig();
   const apiSites = await getAvailableApiSites(authInfo.username);
-  const [canAccessOpenList, canAccessEmby] = await Promise.all([
-    hasFeaturePermission(authInfo.username, 'private_library'),
-    hasFeaturePermission(authInfo.username, 'emby'),
-  ]);
 
   // 创建权重映射表
   const weightMap = new Map<string, number>();
@@ -56,7 +51,6 @@ export async function GET(request: NextRequest) {
 
   // 检查是否配置了 OpenList
   const hasOpenList = !!(
-    canAccessOpenList &&
     config.OpenListConfig?.Enabled &&
     config.OpenListConfig?.URL &&
     config.OpenListConfig?.Username &&
@@ -66,7 +60,7 @@ export async function GET(request: NextRequest) {
   // 获取所有启用的 Emby 源
   const { embyManager } = await import('@/lib/emby-manager');
   const embySourcesMap = await embyManager.getAllClients();
-  const embySources = canAccessEmby ? Array.from(embySourcesMap.values()) : [];
+  const embySources = Array.from(embySourcesMap.values());
 
   console.log('[Search] Emby sources count:', embySources.length);
   console.log('[Search] Emby sources:', embySources.map(s => ({ key: s.config.key, name: s.config.name })));

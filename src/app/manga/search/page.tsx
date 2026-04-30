@@ -108,10 +108,9 @@ export default function MangaSearchPage() {
   }, []);
 
   const performSearch = useCallback(
-    async (keyword: string, selectedSourceId: string, options?: { forceRefresh?: boolean }) => {
+    async (keyword: string, selectedSourceId: string) => {
       const trimmedQuery = keyword.trim();
       if (!trimmedQuery) return;
-      const forceRefresh = options?.forceRefresh === true;
 
       setLoading(true);
       setError('');
@@ -119,7 +118,7 @@ export default function MangaSearchPage() {
       setLastSearchedQuery(trimmedQuery);
       setLastSearchedSourceId(selectedSourceId);
 
-      const cached = forceRefresh ? null : getCachedResults(trimmedQuery, selectedSourceId);
+      const cached = getCachedResults(trimmedQuery, selectedSourceId);
       if (cached) {
         setResults(cached);
         saveSearchState({ query: trimmedQuery, sourceId: selectedSourceId, results: cached });
@@ -188,7 +187,7 @@ export default function MangaSearchPage() {
     const params = new URLSearchParams({ q: trimmedQuery });
     if (sourceId) params.set('sourceId', sourceId);
     router.replace(`/manga/search?${params.toString()}`);
-    await performSearch(trimmedQuery, sourceId, { forceRefresh: true });
+    await performSearch(trimmedQuery, sourceId);
   };
 
   const returnTo = useMemo(() => {

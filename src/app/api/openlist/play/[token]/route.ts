@@ -5,7 +5,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { OpenListClient } from '@/lib/openlist.client';
-import { hasFeaturePermission } from '@/lib/permissions';
 
 export const runtime = 'nodejs';
 
@@ -40,18 +39,14 @@ export async function GET(
       if (username) {
         // 检查用户是否被封禁
         const userInfo = await db.getUserInfoV2(username);
-        const allowed = await hasFeaturePermission(username, 'private_library');
-        if (userInfo && !userInfo.banned && allowed) {
+        if (userInfo && !userInfo.banned) {
           hasValidToken = true;
         }
       }
     }
 
     // 验证用户登录
-    const hasValidAuth = !!(
-      authInfo?.username &&
-      (await hasFeaturePermission(authInfo.username, 'private_library'))
-    );
+    const hasValidAuth = authInfo && authInfo.username;
 
     // 两者至少满足其一
     if (!hasValidToken && !hasValidAuth) {

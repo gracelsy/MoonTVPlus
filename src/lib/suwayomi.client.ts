@@ -7,10 +7,8 @@ import {
   MangaChapter,
   MangaDetail,
   MangaRecommendResult,
-  MangaSearchFailure,
   MangaRecommendType,
   MangaSearchItem,
-  MangaSearchResult,
   MangaSource,
 } from './manga.types';
 
@@ -43,7 +41,6 @@ interface SuwayomiSessionCacheEntry {
 }
 
 const SUWAYOMI_SESSION_TTL_MS = 25 * 60 * 1000;
-const DEFAULT_SUWAYOMI_TIMEOUT_MS = Number(process.env.SUWAYOMI_TIMEOUT_MS || 20000);
 const suwayomiSessionCache = new Map<string, SuwayomiSessionCacheEntry>();
 
 function normalizeSuwayomiAuthMode(value?: string | null): 'none' | 'basic_auth' | 'simple_login' {
@@ -219,26 +216,16 @@ async function suwayomiFetch(
   input: string,
   init: RequestInit = {}
 ): Promise<Response> {
-  const timeoutMs = DEFAULT_SUWAYOMI_TIMEOUT_MS;
-
   const execute = async (forceSimpleLoginRefresh: boolean) => {
     const authHeaders = await getSuwayomiRequestHeaders(resolved, forceSimpleLoginRefresh);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(new Error(`Suwayomi 请求超时(${timeoutMs}ms)`)), timeoutMs);
-
-    try {
-      return await fetch(input, {
-        ...init,
-        headers: {
-          ...(authHeaders || {}),
-          ...(init.headers || {}),
-        },
-        cache: 'no-store',
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    return fetch(input, {
+      ...init,
+      headers: {
+        ...(authHeaders || {}),
+        ...(init.headers || {}),
+      },
+      cache: 'no-store',
+    });
   };
 
   let response = await execute(false);
@@ -338,26 +325,11 @@ export class SuwayomiClient {
     }));
   }
 
-  async searchManga(keyword: string, sourceId?: string, page = 1): Promise<MangaSearchResult> {
+  async searchManga(keyword: string, sourceId?: string, page = 1): Promise<MangaSearchItem[]> {
     const resolved = await resolveSuwayomiConfig(this.options);
-    let sources: Array<{ id: string; displayName?: string; name?: string }>;
-    if (sourceId) {
-      sources = [{ id: sourceId, displayName: sourceId, name: sourceId }];
-    } else {
-      try {
-        sources = (await this.getSources(resolved.defaultLang)).slice(0, resolved.maxSources);
-      } catch (error) {
-        if (resolved.sourceIds.length === 0) {
-          throw error;
-        }
-        sources = resolved.sourceIds.slice(0, resolved.maxSources).map((id) => ({
-          id,
-          displayName: id,
-          name: id,
-        }));
-      }
-    }
-
+    const sources = sourceId
+      ? [{ id: sourceId, displayName: sourceId, name: sourceId }]
+      : (await this.getSources(resolved.defaultLang)).slice(0, resolved.maxSources);
     const query = `
       mutation GET_SOURCE_MANGAS_FETCH($input: FetchSourceMangaInput!) {
         fetchSourceManga(input: $input) {
@@ -377,60 +349,37 @@ export class SuwayomiClient {
     `;
 
     const results: MangaSearchItem[] = [];
-    const failedSources: MangaSearchFailure[] = [];
     const seen = new Set<string>();
 
-    const perSourceResults = await Promise.all(
-      sources.map(async (source) => {
-        try {
-          const data = await this.graphqlRequest<{
-            fetchSourceManga?: {
-              mangas?: Array<{
-                id: string | number;
-                title?: string;
-                thumbnailUrl?: string;
-                sourceId?: string | number;
-                description?: string;
-                author?: string;
-                artist?: string;
-                genre?: string;
-                status?: string;
-              }>;
-            };
-          }>(
-            query,
-            {
-              input: {
-                type: 'SEARCH',
-                source: source.id,
-                query: keyword,
-                page,
-              },
-            },
-            'GET_SOURCE_MANGAS_FETCH'
-          );
+    for (const source of sources) {
+      const data = await this.graphqlRequest<{
+        fetchSourceManga?: {
+          mangas?: Array<{
+            id: string | number;
+            title?: string;
+            thumbnailUrl?: string;
+            sourceId?: string | number;
+            description?: string;
+            author?: string;
+            artist?: string;
+            genre?: string;
+            status?: string;
+          }>;
+        };
+      }>(
+        query,
+        {
+          input: {
+            type: 'SEARCH',
+            source: source.id,
+            query: keyword,
+            page,
+          },
+        },
+        'GET_SOURCE_MANGAS_FETCH'
+      ).catch(() => ({ fetchSourceManga: { mangas: [] } }));
 
-          return {
-            source,
-            mangas: data.fetchSourceManga?.mangas || [],
-          };
-        } catch (error) {
-          const message = error instanceof Error ? error.message : '未知错误';
-          console.warn(`[Suwayomi] manga search source failed: ${source.id} - ${message}`);
-          failedSources.push({
-            sourceId: String(source.id),
-            sourceName: source.displayName || source.name || String(source.id),
-            error: message,
-          });
-          return {
-            source,
-            mangas: [],
-          };
-        }
-      })
-    );
-
-    for (const { source, mangas } of perSourceResults) {
+      const mangas = data.fetchSourceManga?.mangas || [];
       for (const manga of mangas) {
         const key = `${source.id}:${manga.id}`;
         if (seen.has(key)) continue;
@@ -450,10 +399,7 @@ export class SuwayomiClient {
       }
     }
 
-    return {
-      results,
-      failedSources,
-    };
+    return results;
   }
 
   async getRecommendedManga(

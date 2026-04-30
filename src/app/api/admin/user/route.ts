@@ -5,7 +5,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
-import { sanitizeFeaturePermissions } from '@/lib/feature-permissions';
 
 export const runtime = 'nodejs';
 
@@ -357,13 +356,11 @@ export async function POST(request: NextRequest) {
       }
       case 'userGroup': {
         // 用户组管理操作
-        const { groupAction, groupName, enabledApis, permissions } = body as {
+        const { groupAction, groupName, enabledApis } = body as {
           groupAction: 'add' | 'edit' | 'delete';
           groupName: string;
           enabledApis?: string[];
-          permissions?: string[];
         };
-        const normalizedPermissions = sanitizeFeaturePermissions(permissions);
 
         if (!adminConfig.UserConfig.Tags) {
           adminConfig.UserConfig.Tags = [];
@@ -378,7 +375,6 @@ export async function POST(request: NextRequest) {
             adminConfig.UserConfig.Tags.push({
               name: groupName,
               enabledApis: enabledApis || [],
-              permissions: normalizedPermissions,
             });
             break;
           }
@@ -388,7 +384,6 @@ export async function POST(request: NextRequest) {
               return NextResponse.json({ error: '用户组不存在' }, { status: 404 });
             }
             adminConfig.UserConfig.Tags[groupIndex].enabledApis = enabledApis || [];
-            adminConfig.UserConfig.Tags[groupIndex].permissions = normalizedPermissions;
             break;
           }
           case 'delete': {

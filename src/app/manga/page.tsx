@@ -46,12 +46,6 @@ export default function MangaRecommendPage() {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && !(window as any).RUNTIME_CONFIG?.SUWAYOMI_ENABLED) {
-      router.replace('/');
-    }
-  }, [router]);
-
-  useEffect(() => {
     const query = searchParams.get('q')?.trim();
     if (!query) return;
 

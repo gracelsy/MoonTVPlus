@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 解析请求体获取密码
-    const { password, includeMangaData = true, includeBookData = true } = await req.json();
+    const { password } = await req.json();
     if (!password || typeof password !== 'string') {
       return NextResponse.json({ error: '请提供加密密码' }, { status: 400 });
     }
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
         // 所有用户数据
         userData: {} as { [username: string]: any },
         // V2用户信息
-        usersV2: [] as any[],
+        usersV2: [] as any[]
       }
     };
 
@@ -116,22 +116,14 @@ export async function POST(req: NextRequest) {
             searchHistory,
             skipConfigs,
             musicV2History,
-            playlists,
-            mangaShelf,
-            mangaReadRecords,
-            bookShelf,
-            bookReadRecords
+            playlists
           ] = await Promise.all([
             db.getAllPlayRecords(username),
             db.getAllFavorites(username),
             db.getSearchHistory(username),
             db.getAllSkipConfigs(username),
             db.listMusicV2History(username),
-            db.listMusicV2Playlists(username),
-            includeMangaData ? db.getAllMangaShelf(username) : Promise.resolve({}),
-            includeMangaData ? db.getAllMangaReadRecords(username) : Promise.resolve({}),
-            includeBookData ? db.getAllBookShelf(username) : Promise.resolve({}),
-            includeBookData ? db.getAllBookReadRecords(username) : Promise.resolve({})
+            db.listMusicV2Playlists(username)
           ]);
 
           // 并行获取所有歌单的歌曲
@@ -151,8 +143,6 @@ export async function POST(req: NextRequest) {
               skipConfigs,
               musicV2History,
               musicV2Playlists: playlistsWithSongs,
-              ...(includeMangaData ? { mangaData: { shelf: mangaShelf, readRecords: mangaReadRecords } } : {}),
-              ...(includeBookData ? { bookData: { shelf: bookShelf, readRecords: bookReadRecords } } : {}),
               passwordV2: finalPasswordV2
             }
           };
